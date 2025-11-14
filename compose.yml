@@ -1,0 +1,20 @@
+services:
+
+  pull-request-service:
+    build:
+      context: ./pull-request-service
+      dockerfile: ./build/Dockerfile
+    container_name: pull-request-service
+    networks:
+      - backend_network
+    ports:
+      - ${PR_REQUEST_PORT}:${PR_REQUEST_PORT}
+    environment:
+      - PR_REQUEST_HOST=${PR_REQUEST_HOST}
+      - PR_REQUEST_PORT=${PR_REQUEST_PORT}
+      - PR_REQUEST_SERVER_SHUTDOWN_TIMEOUT=${PR_REQUEST_SERVER_SHUTDOWN_TIMEOUT}
+    restart: unless-stopped
+
+networks:
+  backend_network:
+    driver: bridge
