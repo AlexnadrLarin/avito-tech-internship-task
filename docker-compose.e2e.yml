@@ -1,0 +1,73 @@
+services:
+  db_e2e:
+    image: postgres:16.8-alpine
+    container_name: postgres_e2e
+    environment:
+      - POSTGRES_USER=${TEST_E2E_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${TEST_E2E_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${TEST_E2E_POSTGRES_DB}
+    networks:
+      - e2e_network
+    ports:
+      - ${TEST_E2E_POSTGRES_PORT}:5432
+    volumes:
+      - ./database/postgres/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_E2E_POSTGRES_USER} -d ${TEST_E2E_POSTGRES_DB}"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 5s
+
+  api_e2e:
+    build:
+      context: ./pull-request-service
+      dockerfile: ./build/Dockerfile
+      target: build
+    container_name: pull-request-service_e2e
+    networks:
+      - e2e_network
+    environment:
+      - PR_SERVER_HOST=${TEST_E2E_PR_SERVER_HOST}
+      - PR_SERVER_PORT=${TEST_E2E_PR_SERVER_PORT}
+      - PR_SERVER_SHUTDOWN_TIMEOUT=${TEST_E2E_PR_SERVER_SHUTDOWN_TIMEOUT}
+      - POSTGRES_HOST=${TEST_E2E_POSTGRES_HOST}
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${TEST_E2E_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${TEST_E2E_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${TEST_E2E_POSTGRES_DB}
+      - POSTGRES_SSL_MODE=${TEST_E2E_POSTGRES_SSL_MODE}
+      - POSTGRES_TIMEOUT=${TEST_E2E_POSTGRES_TIMEOUT}
+      - LOG_LEVEL=${TEST_E2E_LOG_LEVEL}
+    ports:
+      - ${TEST_E2E_PR_SERVER_PORT}:${TEST_E2E_PR_SERVER_PORT}
+    depends_on:
+      db_e2e:
+        condition: service_healthy
+    command: ["./pull-request-service-bin"]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/${TEST_E2E_PR_SERVER_PORT}' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  tests:
+    build:
+      context: ./integration_tests
+      dockerfile: ./build/Dockerfile
+    container_name: integration_tests
+    networks:
+      - e2e_network
+    environment:
+      - API_URL=http://api_e2e:${TEST_E2E_PR_SERVER_PORT}
+    depends_on:
+      db_e2e:
+        condition: service_healthy
+      api_e2e:
+        condition: service_healthy
+
+networks:
+  e2e_network:
+    driver: bridge
+

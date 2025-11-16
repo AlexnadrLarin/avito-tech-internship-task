@@ -8,13 +8,47 @@ services:
     networks:
       - backend_network
     ports:
-      - ${PR_REQUEST_PORT}:${PR_REQUEST_PORT}
+      - ${PR_SERVER_PORT}:${PR_SERVER_PORT}
     environment:
-      - PR_REQUEST_HOST=${PR_REQUEST_HOST}
-      - PR_REQUEST_PORT=${PR_REQUEST_PORT}
-      - PR_REQUEST_SERVER_SHUTDOWN_TIMEOUT=${PR_REQUEST_SERVER_SHUTDOWN_TIMEOUT}
+      - PR_SERVER_HOST=${PR_SERVER_HOST}
+      - PR_SERVER_PORT=${PR_SERVER_PORT}
+      - PR_SERVER_SHUTDOWN_TIMEOUT=${PR_SERVER_SHUTDOWN_TIMEOUT}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_SSL_MODE=${POSTGRES_SSL_MODE}
+      - POSTGRES_TIMEOUT=${POSTGRES_TIMEOUT}
     restart: unless-stopped
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+
+  postgres_db:
+    build:
+      context: ./database/postgres
+    container_name: postgres_db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    networks:
+      - backend_network
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 networks:
   backend_network:
     driver: bridge
+
+volumes:
+  postgres_data: 
+  
